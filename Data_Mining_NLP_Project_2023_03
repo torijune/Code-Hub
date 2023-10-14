@@ -1,0 +1,108 @@
+## DataMining subject's NLP project
+
+# nsmc 데이터셋 경로
+fname_train = r'https://raw.githubusercontent.com/e9t/nsmc/master/ratings_train.txt'
+fname_test = r'https://raw.githubusercontent.com/e9t/nsmc/master/ratings_test.txt'
+
+train_data = pd.read_csv(fname_train, sep='\t', header=0, index_col=0)
+test_data = pd.read_csv(fname_test, sep='\t', header=0, index_col=0)
+
+# 전처리 시 문제가 생기지 않도록 document를 문자열로 설정
+train_data = train_data.astype({'document' : 'string'})
+test_data = test_data.astype({'document' : 'string'})
+
+######## 한글 자연어 데이터셋 전처리 과정 #########
+
+# 결측치 제거
+test_data=test_data.dropna()
+
+# 중복된 데이터 제거
+test_data=test_data.drop_duplicates(subset=['document'])
+
+# 한글과 숫자, 공백, 그리고 일부 특수문자를 제외한 모든 특수문자를 띄어쓰기로 변환
+pattern = "[^0-9|ㄱ-ㅎ|ㅏ-ㅣ|가-힣|.,?! ]"
+train_data['document'] = train_data['document'].replace(pattern, " ", regex=True)
+test_data['document'] = test_data['document'].replace(pattern, " ", regex=True)
+
+# 공백 또는 특수문자로만 구성된 데이터 제거
+pattern = '^[.,?! ]+$'
+train_data = train_data.loc[train_data['document'].str.match(pattern) == False]
+test_data = test_data.loc[test_data['document'].str.match(pattern) == False]
+
+# 공백 또는 특수문자로만 구성된 데이터가 있는지 최종 확인
+pattern = '^[.,?! ]+$'
+print(train_data.loc[train_data['document'].str.match(pattern) == True])
+print(test_data.loc[test_data['document'].str.match(pattern) == True])
+
+
+# konlpy에 있는 tagger -> Okt,Kkma
+from konlpy.tag import Okt
+from konlpy.tag import Kkma
+
+# 토크나이징 함수 제작
+def tokenizer(choice, sentence):
+    okt = Okt()
+    kkma = Kkma()
+    result = ''
+    morphs = okt.morphs(sentence)
+    result = ' '.join(morphs)
+    return result
+
+# train_data에 대한 토큰화 진행
+
+token_list = [tokenizer(kor_tagger,train_data.loc[idx, 'document'])
+                  for idx in tqdm(train_data.index)]
+df_token = pd.Series(token_list, name='document_token', index=train_data.index)
+df_train = pd.concat([df_token, train_data.label], axis=1)
+df_train.to_csv(save_fname_train)
+
+# test_data에 대한 토큰화 진행
+token_list = [tokenizer(kor_tagger,test_data.loc[idx, 'document'])
+                  for idx in tqdm(test_data.index)]
+df_token = pd.Series(token_list, name='document_token', index=test_data.index)
+df_test = pd.concat([df_token, test_data.label], axis=1)
+df_test.to_csv(save_fname_test)
+
+# Bag of Word (BoW) 제작
+count = CountVectorizer()
+bag = count.fit_transform(df_train['document_token'].values)
+
+# 문장의 길이가 2이하인 문장 제거
+words=bag.sum(axis=1)
+row_to_del=np.where(words<=2)[0] 
+
+# 단어들이 등장하는 횟수에 대한 히스토그램 그려보기
+plt.hist(totalsum_arr.flatten(),bins=10000)
+plt.yscale('log')
+plt.show()
+
+# TF-IDF로 변환하
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+vectorizer = TfidfVectorizer()
+
+X_train = vectorizer.fit_transform(df_filtered['document_token'])
+X_train_id = df_filtered['document_token'].index
+y_train = df_filtered['label'].values
+X_test = vectorizer.transform(df_test['document_token'])
+X_test_id = df_test['document_token'].index
+y_test = df_test['label'].values
+
+# 라이블러리 임포트
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score, \
+                            confusion_matrix, classification_report
+
+# 테스트데이터에 대한 y값 예측하기
+y_pred = clf.predict(X_test)
+
+# 성능 평가하기 -> confusion matrix가 시각적으로 잘 표현됨
+
+# Model Accuracy
+print("Accuracy: {:.3f}".format(accuracy_score(y_test, y_pred)))
+
+# Generate Confusion Matrix and Classification Report
+print()
+print(confusion_matrix(y_test, y_pred))
+print()
+print(classification_report(y_test, y_pred))
