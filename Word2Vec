@@ -1,4 +1,4 @@
-# I was learning this code from Tae Hwan Jung @graykode
+# I learned this code from Tae Hwan Jung @graykode
 
 import numpy as np
 import torch
